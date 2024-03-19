@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { ArcballControls } from 'three/addons/controls/ArcballControls.js';
 import type { Cube } from '$lib/game/types.ts'
 
 // TODO: make these to be configurable
@@ -7,8 +7,6 @@ const WIDTH = 500;
 const HEIGHT = 500;
 const COLOR = {
   BG: new THREE.Color("rgb(127, 127, 127)"),
-  NORMAL: new THREE.Color("rgb(256, 256, 256)"),
-  HOVER: new THREE.Color("rgb(256, 0, 0)"),
 }
 
 const CubeColor: Record<number, THREE.Color> = {
@@ -37,7 +35,7 @@ export class GameUI {
   _controls;
   _edgePoints;
   _cube: Cube;
-  _cubeMeshs: THREE.Mesh[];
+  _cubeMeshs: ((THREE.Mesh[])[])[];
   _lines: THREE.LineSegments[];
 
   constructor(container: HTMLElement, cube?: Cube) {
@@ -65,8 +63,9 @@ export class GameUI {
 
     this._pointer = new THREE.Vector2();
 
-    const controls = new OrbitControls(this._camera, this._renderer.domElement);
+    const controls = new ArcballControls(this._camera, this._renderer.domElement);
     controls.update();
+    controls.addEventListener('end', this._onMouseUp.bind(this));
     this._controls = controls
 
     this._edgePoints = edgePoints;
@@ -92,12 +91,11 @@ export class GameUI {
       this._cube = cube as Cube;
     }
 
-    this._cubeMeshs = [];
+    this._cubeMeshs = [[[]]];
     this._lines = [];
     this._setupModels();
 
     container.addEventListener('mousemove', this._onMouseMove.bind(this));
-    container.addEventListener('mouseup', this._onMouseUp.bind(this));
     requestAnimationFrame(this.render.bind(this));
   }
 
@@ -113,35 +111,42 @@ export class GameUI {
       return;
     }
 
+    const cubeMeshLayer1 = [];
     for (let i = 0; i < this._cube.length; i++) {
+      const cubeMeshLayer2 = [];
       for (let j = 0; j < this._cube[0].length; j++) {
+        const cubeMeshLayer3 = [];
         for (let k = 0; k < this._cube[0][0].length; k++) {
           const cubePart = this._cube[i][j][k];
           const boxGeometry = new THREE.BoxGeometry(SIZE, SIZE, SIZE);
           const material = new THREE.MeshBasicMaterial({
             color: CubeColor[cubePart.value] ?? CubeColor[0],
-            transparent: true,
-            opacity: 0.8,
           });
           const cube = new THREE.Mesh(boxGeometry, material);
 
-          cube.position.x = - TOTAL_LENGTH / 2 + (GAP + SIZE) * i + SIZE / 2;
-          cube.position.y = - TOTAL_LENGTH / 2 + (GAP + SIZE) * j + SIZE / 2;
-          cube.position.z = - TOTAL_LENGTH / 2 + (GAP + SIZE) * k + SIZE / 2;
-          this._cubeMeshs.push(cube);
+          cube.position.x = - TOTAL_LENGTH / 2 + (GAP + SIZE) * j + SIZE / 2;
+          cube.position.y = - TOTAL_LENGTH / 2 + (GAP + SIZE) * (count - i - 1) + SIZE / 2;
+          cube.position.z = - TOTAL_LENGTH / 2 + (GAP + SIZE) * (count - k - 1) + SIZE / 2;
+          cubeMeshLayer3.push(cube);
 
           const edgesGeometry = new THREE.EdgesGeometry(boxGeometry);
           const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
           const line = new THREE.LineSegments(edgesGeometry, edgesMaterial);
-          line.position.x = - TOTAL_LENGTH / 2 + (GAP + SIZE) * i + SIZE / 2;
-          line.position.y = - TOTAL_LENGTH / 2 + (GAP + SIZE) * j + SIZE / 2;
+          line.position.x = - TOTAL_LENGTH / 2 + (GAP + SIZE) * j + SIZE / 2;
+          line.position.y = - TOTAL_LENGTH / 2 + (GAP + SIZE) * i + SIZE / 2;
           line.position.z = - TOTAL_LENGTH / 2 + (GAP + SIZE) * k + SIZE / 2;
           this._lines.push(line);
         }
+        cubeMeshLayer2.push(cubeMeshLayer3);
       }
+      cubeMeshLayer1.push(cubeMeshLayer2);
     }
+    this._cubeMeshs = cubeMeshLayer1;
 
-    this._cubeMeshs.forEach(cube => this._scene.add(cube));
+    this._cubeMeshs
+      .forEach(layer => layer
+        .forEach(row => row
+          .forEach(col => this._scene.add(col))));
     this._lines.forEach(line => this._scene.add(line));
   }
 
@@ -176,13 +181,26 @@ export class GameUI {
   }
 
   render() {
+    for (let i = 0; i < this._cube.length; i++) {
+      for (let j = 0; j < this._cube[0].length; j++) {
+        for (let k = 0; k < this._cube[0][0].length; k++) {
+          const cubePart = this._cube[i][j][k];
+          this._cubeMeshs[i][j][k].material = new THREE.MeshBasicMaterial({
+            color: CubeColor[cubePart.value] ?? CubeColor[0],
+          });
+        }
+      }
+    }
+
     this._renderer.render(this._scene, this._camera);
+
+    this._controls.update();
 
     requestAnimationFrame(this.render.bind(this));
   }
 
   update(gameData: Cube) {
-    // TODO: implement
+    this._cube = gameData;
   }
 }
 
