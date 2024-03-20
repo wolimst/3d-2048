@@ -1,16 +1,26 @@
-import { EMPTY_ITEM } from './constants'
-import type { Cube, Direction, Item, Position } from './types'
+import { EMPTY_CELL } from './constants'
+import type { Cube, Direction, Cell, Position } from './types'
 
 type RotationDegree = -180 | -90 | 0 | 90 | 180
 type Rotation = readonly [RotationDegree, RotationDegree]
 
-export function addItem(cube: Cube, position: Position): Cube {
-  // TODO
-}
-
-export function getItem(cube: Cube, position: Position): Item {
+export function getCell(cube: Cube, position: Position): Cell {
   const [x, y, z] = position
   return cube[x][y][z]
+}
+
+export function setCell(cube: Cube, cell: Cell, position: Position): Cube {
+  const [ix, iy, iz] = position
+  const newCube = cube.map((yz, jx) =>
+    yz.map((z, jy) => {
+      if (ix === jx && iy === jy) {
+        return z.toSpliced(iz, 1, cell)
+      } else {
+        return z
+      }
+    })
+  )
+  return newCube
 }
 
 export function shift(cube: Cube, direction: Direction): Cube {
@@ -52,13 +62,13 @@ function rotate(cube: Cube, rotation: Rotation): Cube {
   // TODO
 }
 
-function mergeItemsToFront(items: readonly Item[]): readonly Item[] {
-  const nonEmptyItems = items.filter((item) => item !== EMPTY_ITEM)
+function mergeItemsToFront(items: readonly Cell[]): readonly Cell[] {
+  const nonEmptyItems = items.filter((item) => item !== EMPTY_CELL)
 
-  const result: Item[] = []
+  const result: Cell[] = []
   while (nonEmptyItems.length > 0) {
     const a = nonEmptyItems.pop()!
-    const b = nonEmptyItems.at(0) || EMPTY_ITEM
+    const b = nonEmptyItems.at(0) || EMPTY_CELL
 
     if (isMergeable(a, b)) {
       result.push(double(a))
@@ -69,17 +79,17 @@ function mergeItemsToFront(items: readonly Item[]): readonly Item[] {
   }
 
   while (result.length === items.length) {
-    result.push(EMPTY_ITEM)
+    result.push(EMPTY_CELL)
   }
 
   return result
 }
 
-function isMergeable(a: Item, b: Item): boolean {
+function isMergeable(a: Cell, b: Cell): boolean {
   return a.type === 'number' && b.type === 'number' && a.value === b.value
 }
 
-function double(item: Item): Item {
+function double(item: Cell): Cell {
   if (item.type !== 'number') {
     throw new Error(`invalid item type: ${item.type}`)
   }
