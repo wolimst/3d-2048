@@ -1,16 +1,17 @@
 // TODO: make readonly?
-export interface GameInterface {
-  status: Status
+export interface _GameInterface {
+  state: State
   cube: Cube
-  shift(direction: Direction): void
+  addNewCell(): readonly CellEvent[]
+  shift(direction: Direction): readonly CellEvent[]
 }
 
-export type Status = {
-  status: 'playing' | 'win' | 'lose'
+export type State = {
+  playing: boolean
   score: number
 }
 
-export interface HistoryInterface<T> {
+export interface _HistoryInterface<T> {
   undo(): T | undefined
   redo(): T | undefined
 }
@@ -27,7 +28,28 @@ export interface Cell {
   readonly value: number
 }
 
-export type Position = readonly [number, number, number]
+export type CellEvent = CellMoveEvent | CellCreateEvent | CellDestroyEvent
+
+export interface CellMoveEvent {
+  readonly type: 'move'
+  readonly cell: Cell
+  readonly index: IndexedPosition
+  readonly newIndex: IndexedPosition
+}
+
+export interface CellCreateEvent {
+  readonly type: 'create'
+  readonly cell: Cell
+  readonly index: IndexedPosition
+}
+
+export interface CellDestroyEvent {
+  readonly type: 'destroy'
+  readonly cell: Cell
+  readonly index: IndexedPosition
+}
+
+export type IndexedPosition = readonly [number, number, number]
 
 export type Direction =
   | readonly [1, 0, 0]
