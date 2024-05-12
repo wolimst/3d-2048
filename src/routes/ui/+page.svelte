@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { GameUI } from '$lib/ui'
+  import { GameUI } from '$lib/ui/canvas'
   import type { Cube } from '$lib/game'
 
   let gameUI: GameUI | null = null
