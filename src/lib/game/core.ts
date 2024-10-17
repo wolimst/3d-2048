@@ -246,39 +246,18 @@ function shiftToZ(
     } else {
       targetIndex += 1
       resultCells[targetIndex] = cell
-      events.push({
-        type: 'move',
-        cell,
-        index: [i, j, k],
-        newIndex: [i, j, targetIndex]
-      })
+      if (k !== targetIndex) {
+        events.push({
+          type: 'move',
+          cell,
+          index: [i, j, k],
+          newIndex: [i, j, targetIndex]
+        })
+      }
     }
   }
   return events
 }
-
-// function mergeItemsToFrontOld(items: readonly Cell[]): readonly Cell[] {
-//   const nonEmptyItems = items.filter((item) => item !== EMPTY_CELL)
-
-//   const result: Cell[] = []
-//   while (nonEmptyItems.length > 0) {
-//     const a = nonEmptyItems.pop()!
-//     const b = nonEmptyItems.at(0) || EMPTY_CELL
-
-//     if (isMergeable(a, b)) {
-//       result.push(double(a))
-//       nonEmptyItems.pop()
-//     } else {
-//       result.push(a)
-//     }
-//   }
-
-//   while (result.length === items.length) {
-//     result.push(EMPTY_CELL)
-//   }
-
-//   return result
-// }
 
 function isMergeable(a: Cell, b: Cell): boolean {
   return a.type === 'number' && b.type === 'number' && a.value === b.value

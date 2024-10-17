@@ -1,14 +1,13 @@
-// TODO: make readonly?
 export interface _GameInterface {
-  state: State
-  cube: Cube
+  readonly state: State
+  readonly cube: Cube
   addNewCell(): readonly CellEvent[]
   shift(direction: Direction): readonly CellEvent[]
 }
 
 export type State = {
-  playing: boolean
-  score: number
+  readonly playing: boolean
+  readonly score: number
 }
 
 export interface _HistoryInterface<T> {

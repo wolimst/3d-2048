@@ -1,14 +1,12 @@
-import { DIRECTIONS, EMPTY_CELL, EMPTY_CUBE } from './constants'
+import { DIRECTIONS, EMPTY_CUBE } from './constants'
 import * as core from './core'
 import type {
   _History,
-  Cell,
   CellEvent,
   Cube,
   Direction,
   _GameInterface,
   _HistoryInterface,
-  IndexedPosition,
   State
 } from './types'
 
@@ -16,11 +14,12 @@ export class Game
   implements _GameInterface, _HistoryInterface<readonly CellEvent[]>
 {
   #cube: Cube
+  #score: number
   #history: _History<readonly CellEvent[]>
 
   constructor() {
     this.#cube = EMPTY_CUBE
-
+    this.#score = 0
     this.#history = {
       values: [],
       index: 0
@@ -32,10 +31,6 @@ export class Game
   }
 
   get state(): State {
-    const score = this.#cube
-      .flatMap((yz) => yz.flatMap((z) => z.map(core.getScore)))
-      .reduce((a, b) => a + b, 0)
-
     const shiftEvents = DIRECTIONS.flatMap((direction) =>
       core.shift(this.#cube, direction)
     )
@@ -43,18 +38,8 @@ export class Game
 
     return {
       playing,
-      score
+      score: this.#score
     }
-  }
-
-  // TODO: make private
-  set cube(cube: Cube) {
-    this.#cube = cube
-  }
-
-  // TODO: make private
-  setCell(cell: Cell, position: IndexedPosition) {
-    this.#cube = core.setCell(this.#cube, cell, position)
   }
 
   init(): readonly CellEvent[] {
@@ -88,10 +73,19 @@ export class Game
     let events: CellEvent[] = []
 
     const shiftEvents = core.shift(this.#cube, direction)
+    if (shiftEvents.length === 0) {
+      return []
+    }
+
     shiftEvents.forEach((event) => {
       this.#cube = core.applyCellEvent(this.#cube, event)
     })
     events = events.concat(shiftEvents)
+
+    const score = shiftEvents
+      .filter((event) => event.type === 'create')
+      .reduce((sum, event) => sum + event.cell.value, 0)
+    this.#score += score
 
     if (this.state.playing) {
       const createEvents = core.createNewCells(this.#cube, 1)
