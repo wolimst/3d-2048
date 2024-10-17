@@ -1,3 +1,3 @@
-export * from './canvas2'
+export * from './canvas'
 export * from './color'
 export * from './types'

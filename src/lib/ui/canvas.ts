@@ -5,17 +5,29 @@ import * as THREE from 'three'
 import { ArcballControls } from 'three/addons/controls/ArcballControls.js'
 import { Text } from 'troika-three-text'
 
-const CELL_GEOMETRY = new THREE.BoxGeometry()
+const DIRECTIONS: game.Direction[] = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1]
+]
 
-export class Canvas2 {
+export class Canvas {
   config: UIConfig
+  domContainer: HTMLElement
   renderer: THREE.Renderer
   scene: THREE.Scene
-  camera: THREE.Camera
+  camera: THREE.PerspectiveCamera
   controls: ArcballControls
+  raycaster: THREE.Raycaster
   cells: Cell[]
+  arrows: THREE.ArrowHelper[]
+  intersects: THREE.Intersection[]
 
-  constructor(domElement: HTMLElement, config = defaultConfig) {
+  constructor(domContainer: HTMLElement, config = defaultConfig) {
+    this.domContainer = domContainer
     this.config = config
 
     // Create a scene
@@ -25,29 +37,34 @@ export class Canvas2 {
     // Create a camera
     const camera = new THREE.PerspectiveCamera(
       45,
-      config.width / config.height,
+      domContainer.clientWidth / domContainer.clientHeight,
       1,
       2000
     )
-    camera.position.z = 10
+    const distance =
+      (config.gap * (config.cellCount - 1) + config.cellCount) *
+      config.cellSize *
+      Math.sqrt(3) *
+      0.9
+    camera.position.set(distance * 1.25, distance, distance * 0.5)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
-    renderer.setSize(config.width, config.height)
-    domElement.appendChild(renderer.domElement)
+    renderer.setSize(domContainer.clientWidth, domContainer.clientHeight)
+    domContainer.appendChild(renderer.domElement)
 
     const controls = new ArcballControls(camera, renderer.domElement)
+    const raycaster = new THREE.Raycaster()
+    const cells: Cell[] = []
+    const arrows: THREE.ArrowHelper[] = []
 
     this.renderer = renderer
     this.scene = scene
     this.camera = camera
     this.controls = controls
-    this.cells = []
-
-    // function onWindowResize() {
-    //   camera.aspect = window.innerWidth / window.innerHeight
-    //   camera.updateProjectionMatrix()
-    //   renderer.setSize(window.innerWidth, window.innerHeight)
-    // }
+    this.raycaster = raycaster
+    this.cells = cells
+    this.arrows = arrows
+    this.intersects = []
 
     function drawCellEdges() {
       const boxGeometry = new THREE.BoxGeometry(
@@ -72,7 +89,41 @@ export class Canvas2 {
     }
     drawCellEdges()
 
+    function drawArrows() {
+      for (const dir of DIRECTIONS) {
+        const direction = new THREE.Vector3(...dir)
+        const originOffset =
+          ((config.gap * config.cellCount + config.cellCount) *
+            config.cellSize) /
+          2
+        const origin = direction.clone().multiplyScalar(originOffset)
+        const arrow = new THREE.ArrowHelper(
+          direction,
+          origin,
+          config.arrowSize * config.cellSize,
+          config.arrowColor,
+          0.5 * config.arrowSize * config.cellSize,
+          0.4 * config.arrowSize * config.cellSize
+        )
+        arrow.userData = { dir }
+        scene.add(arrow)
+        arrows.push(arrow)
+      }
+    }
+    drawArrows()
+
+    renderer.domElement.addEventListener(
+      'mousemove',
+      this.onMouseMove.bind(this)
+    )
+    renderer.domElement.addEventListener('click', this.onClick.bind(this))
+    window.addEventListener('resize', this.onResize.bind(this))
+
     this.render()
+  }
+
+  get domElement() {
+    return this.renderer.domElement
   }
 
   render() {
@@ -153,11 +204,16 @@ export class Canvas2 {
   }
 
   createCell(event: game.CellCreateEvent) {
+    const geometry = new THREE.BoxGeometry(
+      this.config.cellSize,
+      this.config.cellSize,
+      this.config.cellSize
+    )
     const material = new THREE.MeshBasicMaterial({
       side: THREE.BackSide,
-      color: 0x00ff00 // TODO set color
+      color: this.config.cellColors[event.cell.value].cell
     })
-    const cube = new THREE.Mesh(CELL_GEOMETRY, material)
+    const cube = new THREE.Mesh(geometry, material)
 
     const position = calculatePosition(event.index, this.config)
     cube.position.set(...position)
@@ -166,7 +222,8 @@ export class Canvas2 {
     text.text = event.cell.value.toString()
     text.anchorX = 'center'
     text.anchorY = 'middle'
-    text.fontSize = 0.5
+    text.fontSize = 0.5 * this.config.cellSize
+    text.color = this.config.cellColors[event.cell.value].text
     cube.add(text)
 
     cube.scale.setScalar(0)
@@ -229,6 +286,84 @@ export class Canvas2 {
       (cell) =>
         cell.index.length === index.length &&
         cell.index.every((v, i) => v === index[i])
+    )
+  }
+
+  onMouseMove(event: MouseEvent) {
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    const pointerX =
+      ((event.clientX - rect.left) / this.renderer.domElement.clientWidth) * 2 -
+      1
+    const pointerY =
+      (-(event.clientY - rect.top) / this.renderer.domElement.clientHeight) *
+        2 +
+      1
+
+    this.raycaster.setFromCamera(
+      new THREE.Vector2(pointerX, pointerY),
+      this.camera
+    )
+
+    this.intersects = this.raycaster.intersectObjects(
+      [
+        ...this.cells.map((cell) => cell.object.cube),
+        ...this.arrows.map((arrow) => arrow.cone)
+      ],
+      false
+    )
+
+    // Reset colors
+    this.cells.forEach((cell) =>
+      cell.object.cube.material.color.set(
+        this.config.cellColors[cell.value].cell
+      )
+    )
+    this.arrows.forEach((arrow) => arrow.setColor(this.config.arrowColor))
+
+    if (this.intersects.length === 0) {
+      return
+    }
+
+    const hoveredCellObject = this.cells.find(
+      (cell) => cell.object.cube === this.intersects[0].object
+    )?.object.cube
+    if (hoveredCellObject) {
+      hoveredCellObject.material.color.lerp(new THREE.Color('black'), 0.2)
+      return
+    }
+    const hoveredArrow = this.arrows.find(
+      (arrow) => arrow.cone === this.intersects[0].object
+    )
+    if (hoveredArrow) {
+      const color = new THREE.Color(this.config.arrowColor)
+      hoveredArrow.setColor(color.lerp(new THREE.Color('black'), 0.2))
+    }
+  }
+
+  onClick(_event: MouseEvent) {
+    if (this.intersects.length === 0) {
+      return
+    }
+
+    const clickedArrow = this.arrows.find(
+      (arrow) => arrow.cone === this.intersects[0].object
+    )
+    if (clickedArrow) {
+      const event = new CustomEvent<game.Direction>('shift', {
+        detail: clickedArrow.userData.dir
+      })
+      this.renderer.domElement.dispatchEvent(event)
+    }
+  }
+
+  onResize(_event: Event) {
+    this.camera.aspect =
+      this.domContainer.clientWidth / this.domContainer.clientHeight
+    this.camera.updateProjectionMatrix()
+
+    this.renderer.setSize(
+      this.domContainer.clientWidth,
+      this.domContainer.clientHeight
     )
   }
 }

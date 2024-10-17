@@ -4,7 +4,7 @@ import * as THREE from 'three'
 export interface Cell extends game.Cell {
   readonly index: game.IndexedPosition
   readonly object: {
-    cube: THREE.Object3D
-    text: THREE.Object3D
+    readonly cube: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>
+    readonly text: THREE.Object3D
   }
 }
