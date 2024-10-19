@@ -28,7 +28,9 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build --if-present -- --base=${{ github.event.repository.name }}
+        env:
+          BASE_PATH: '/${{ github.event.repository.name }}'
+        run: npm run build --if-present
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
